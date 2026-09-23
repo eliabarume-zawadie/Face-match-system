@@ -17,7 +17,7 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 .venv/Scripts/python -m pytest                                   # all tests
 .venv/Scripts/python -m pytest -m "not integration"              # fast: no model loading
 .venv/Scripts/python -m pytest tests/test_api.py::test_threshold_override   # single test
-.venv/Scripts/uvicorn facematch.api:app                          # serve on :8000 (docs at /docs)
+.venv/Scripts/uvicorn facematch.api:app                          # upload page at :8000/, API docs at /docs
 .venv/Scripts/python -m evaluation.run [--write-threshold]       # benchmark; writes evaluation/results/
 ```
 
@@ -40,6 +40,9 @@ curl -F reference=@old.jpg -F candidates=@new1.jpg -F candidates=@new2.jpg http:
 - [facematch/api.py](facematch/api.py): `create_app(engine, settings)` makes the app testable with a fake engine; `facematch.api:app` builds it lazily.
   - `POST /match` takes multipart `reference` and `candidates[]`, plus optional form fields `reference_face`, `candidate_faces` (`"cand:face,..."`) and `threshold`. It always returns 200 with a status per image. A 422 is only for malformed parameters.
   - Each request writes one JSON line to `logs/facematch.log` with **metadata only**. Never add embeddings or pixels to it (FR5).
+- [facematch/static/index.html](facematch/static/index.html): the upload page served at `/`. It implements the Google Stitch design in [stitch_face_match/](stitch_face_match/) ("Kinship & Memory" tokens in `kinship_memory/DESIGN.md`). The Stitch HTML is a reference only; it pulls Tailwind, fonts and images from other sites, so don't copy it in.
+  - The page uses inline CSS, JS and SVG icons, plus Plus Jakarta Sans served from `static/fonts/` (OFL license alongside it).
+  - A test enforces that it loads nothing from other sites. It calls `/health` for the default threshold and `/match` for results. Clicking a face box on a multi-face photo sends that face index and compares again.
 - [facematch/config.py](facematch/config.py): settings come from [facematch_config.json](facematch_config.json). The env vars `FACEMATCH_CONFIG` and `FACEMATCH_THRESHOLD` override them.
 - [evaluation/](evaluation/): benchmark loaders, metrics and a runner.
   - **FG-NET:** every same-subject and cross-subject pair; results broken down by age gap.
@@ -56,4 +59,4 @@ curl -F reference=@old.jpg -F candidates=@new1.jpg -F candidates=@new2.jpg http:
 - **Model license:** the InsightFace pretrained weights are for non-commercial use only. That's fine for this personal tool.
 - **Biometric data:** embeddings count as biometric data. Before adding any persistence, flag the consent and retention concerns (PRD §8).
 - **Known gap:** the datasets have no demographic labels, so the per-slice bias check can't be run.
-- **Out of scope for v1:** UI, auth, persistence, video, liveness, and image restoration.
+- **Out of scope for v1:** auth, persistence, video, liveness, and image restoration. The upload page is the one Phase 2 item built so far.

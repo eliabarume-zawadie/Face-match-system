@@ -124,4 +124,6 @@ Full report: `evaluation/results/summary.md`. Operating threshold 0.2589 (FG-NET
 - Latency: ~0.9–1.2s per match on CPU (target < 2s) — **met**.
 - All-ages FG-NET (reference only): TAR 85.42% at FAR 1%; the gap is child-to-adult pairs (57.7%).
 
+**Upload UI (Phase 2 item):** built. A local page at `/` lets you choose a reference photo and photos to check, then shows a verdict label and score under each one. On a multi-face photo you click the face to use. The page makes no requests to other sites.
+
 **Decision:** baseline meets every v1 target for the confirmed use case, so the Phase 2 age-invariance work (Section 5.1 step 4) is **not triggered**. Revisit only if real adult photo spot-checks disagree with these numbers.

@@ -111,6 +111,18 @@ def test_request_log_is_metadata_only(client, caplog):
     assert "embedding" not in caplog.records[-1].getMessage()
 
 
+def test_upload_page_is_served_and_self_contained(client):
+    r = client.get("/")
+    assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+    # Photos never leave the machine: the page must not pull anything from other sites.
+    assert "http://" not in r.text and "https://" not in r.text and "//" + "fonts." not in r.text
+
+
+def test_local_font_is_served(client):
+    r = client.get("/static/fonts/plus-jakarta-sans-latin-wght-normal.woff2")
+    assert r.status_code == 200 and len(r.content) > 10_000
+
+
 def test_health(client):
     assert client.get("/health").json()["threshold"] == 0.5
 

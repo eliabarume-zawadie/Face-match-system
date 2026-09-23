@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Face Match</title>
+<!-- Design: Google Stitch "Kinship & Memory" (stitch_face_match/). Everything is served locally:
+     no fonts, scripts, icons or images are loaded from other sites. -->
+<style>
+  @font-face {
+    font-family: "Plus Jakarta Sans";
+    src: url("/static/fonts/plus-jakarta-sans-latin-wght-normal.woff2") format("woff2");
+    font-weight: 200 800;
+    font-display: swap;
+  }
+
+  :root {
+    --canvas: #FBF8F3;
+    --band: #F3EEE6;
+    --card: #FFFFFF;
+    --recess: #F6F1EA;
+    --line: rgba(80, 60, 45, .12);
+    --line-strong: #E0D4C5;
+    --dash: #D6C7B6;
+    --ink: #1F2421;
+    --muted: #575B57;
+    --primary: #9B4A32;
+    --primary-hover: #86402B;
+    --on-primary: #FFFFFF;
+    --accent: #C26D53;
+    --accent-soft: #F8E6DF;
+    --amber-fg: #926017;
+    --amber-bg: #FDF6E9;
+    --amber-line: #EBCB8B;
+    --same-fg: #2C6E49;
+    --same-bg: #EBF5EE;
+    --diff-fg: #A64242;
+    --diff-bg: #FAECEC;
+    --slate-fg: #4B5F69;
+    --slate-bg: #EEF2F4;
+    --shadow: 0 2px 8px -2px rgba(50, 40, 30, .06), 0 1px 3px 0 rgba(50, 40, 30, .04);
+    --shadow-lift: 0 12px 28px -6px rgba(50, 40, 30, .10), 0 4px 12px -2px rgba(50, 40, 30, .05);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --canvas: #161412; --band: #1D1A17; --card: #221F1C; --recess: #2A2622;
+      --line: rgba(255, 240, 225, .09); --line-strong: #3A342E; --dash: #4A423A;
+      --ink: #F1ECE6; --muted: #B3AAA0; --primary: #E58D6F; --primary-hover: #F09C7F; --on-primary: #2A130B;
+      --accent: #E58D6F; --accent-soft: #3B2519; --amber-fg: #F0B85C; --amber-bg: #33291A; --amber-line: #6B5226;
+      --same-fg: #86CFA2; --same-bg: #1B3325; --diff-fg: #F29494; --diff-bg: #3D2121;
+      --slate-fg: #AFC2CC; --slate-bg: #232A2E;
+      --shadow: 0 2px 8px -2px rgba(0, 0, 0, .4); --shadow-lift: 0 12px 28px -6px rgba(0, 0, 0, .5);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --canvas: #161412; --band: #1D1A17; --card: #221F1C; --recess: #2A2622;
+    --line: rgba(255, 240, 225, .09); --line-strong: #3A342E; --dash: #4A423A;
+    --ink: #F1ECE6; --muted: #B3AAA0; --primary: #E58D6F; --primary-hover: #F09C7F; --on-primary: #2A130B;
+    --accent: #E58D6F; --accent-soft: #3B2519; --amber-fg: #F0B85C; --amber-bg: #33291A; --amber-line: #6B5226;
+    --same-fg: #86CFA2; --same-bg: #1B3325; --diff-fg: #F29494; --diff-bg: #3D2121;
+    --slate-fg: #AFC2CC; --slate-bg: #232A2E;
+    --shadow: 0 2px 8px -2px rgba(0, 0, 0, .4); --shadow-lift: 0 12px 28px -6px rgba(0, 0, 0, .5);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--canvas); color: var(--ink);
+    font: 400 15px/1.6 "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+  .wrap { width: 100%; max-width: 1280px; margin: 0 auto; padding: 0 48px; }
+  svg.i { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8;
+          stroke-linecap: round; stroke-linejoin: round; }
+  h1, h2, h3, p { margin: 0; }
+  :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
+
+  /* ---- top bar + intro band ---- */
+  .topbar { border-bottom: 1px solid var(--line); background: var(--canvas); }
+  .topbar .wrap { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 68px; }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 20px; color: var(--primary); letter-spacing: -.01em; }
+  .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--band); color: var(--primary); }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 14px;
+    font-size: 13px; font-weight: 500; white-space: nowrap;
+  }
+  .pill.privacy { background: var(--card); border: 1px solid var(--line); color: var(--ink); box-shadow: var(--shadow); }
+  .pill.privacy svg { color: var(--primary); width: 18px; height: 18px; }
+
+  .intro { background: var(--band); border-bottom: 1px solid var(--line); }
+  .intro .wrap { padding-top: 26px; padding-bottom: 26px; }
+  h1 { font-size: 26px; line-height: 1.25; font-weight: 700; letter-spacing: -.02em; }
+  .intro p { color: var(--muted); margin-top: 6px; }
+
+  /* ---- layout ---- */
+  main.wrap { display: grid; grid-template-columns: minmax(300px, 5fr) 7fr; gap: 32px; align-items: start; padding-top: 36px; padding-bottom: 48px; flex: 1; }
+  .col { display: grid; gap: 20px; min-width: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); }
+  .card-pad { padding: 28px; }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .card-title { display: flex; gap: 12px; align-items: flex-start; }
+  .card-title svg { color: var(--primary); margin-top: 3px; }
+  h2 { font-size: 20px; line-height: 1.35; font-weight: 600; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .step { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 999px; background: var(--primary); color: var(--on-primary); font-weight: 700; font-size: 14px; flex: none; }
+  .step.idle { background: var(--band); color: var(--muted); }
+  .count { display: grid; place-items: center; min-width: 32px; height: 32px; padding: 0 8px; border-radius: 8px; background: var(--amber-bg); color: var(--amber-fg); font-weight: 700; font-size: 14px; }
+
+  /* ---- buttons ---- */
+  button, .btn {
+    font: inherit; font-weight: 600; font-size: 15px; line-height: 1; color: var(--ink);
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    border-radius: 12px; padding: 13px 20px; cursor: pointer; border: 1px solid transparent; background: none;
+    position: relative; white-space: nowrap; transition: background-color .15s, transform .1s;
+  }
+  .btn input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .btn:focus-within { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
+  .btn-primary { background: var(--primary); color: var(--on-primary); box-shadow: var(--shadow); }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:active { transform: scale(.99); }
+  .btn-secondary { background: var(--card); border-color: var(--line-strong); }
+  .btn-secondary:hover { background: var(--recess); }
+  button:disabled { cursor: not-allowed; opacity: .5; transform: none; }
+  .btn-primary:disabled { background: var(--primary); }
+  .btn-link { padding: 4px 2px; border-radius: 6px; color: var(--primary); font-size: 14px; gap: 6px; }
+  .btn-link:hover { text-decoration: underline; }
+  .btn-link svg { width: 18px; height: 18px; }
+  .icon-btn { padding: 6px; border-radius: 8px; color: var(--muted); }
+  .icon-btn:hover { background: var(--recess); color: var(--ink); }
+
+  /* ---- drop zones ---- */
+  .dropzone {
+    border: 2px dashed var(--dash); border-radius: 16px; background: var(--recess);
+    display: grid; justify-items: center; align-content: center; text-align: center; gap: 12px; padding: 40px 24px;
+  }
+  .dropzone.dragging, .drop-strip.dragging { border-color: var(--accent); background: var(--accent-soft); }
+  .tile { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); color: var(--primary); box-shadow: var(--shadow); }
+  .tile svg { width: 28px; height: 28px; }
+  .dropzone h3 { font-size: 18px; font-weight: 600; }
+  .dropzone p { color: var(--muted); max-width: 36ch; }
+  .fineprint { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; margin-top: 18px; }
+  .fineprint svg { width: 16px; height: 16px; }
+  .drop-strip {
+    display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; padding: 14px;
+    border: 1.5px dashed var(--dash); border-radius: 12px; color: var(--muted); font-size: 14px;
+  }
+  .drop-strip svg { width: 18px; height: 18px; }
+
+  /* ---- photos ---- */
+  .well { background: var(--recess); border: 1px solid var(--line); border-radius: 16px; padding: 8px; margin-top: 20px; }
+  .frame { position: relative; }
+  .frame img { display: block; width: 100%; height: auto; border-radius: 10px; }
+  .broken { display: grid; place-items: center; gap: 8px; aspect-ratio: 4 / 5; border-radius: 10px; border: 1.5px dashed var(--dash); color: var(--muted); font-size: 13px; text-align: center; padding: 16px; }
+  .broken svg { width: 28px; height: 28px; }
+  .face {
+    position: absolute; padding: 0; border-radius: 6px; border: 2px solid var(--accent);
+    background: transparent; box-shadow: 0 0 0 1px rgba(255, 255, 255, .45);
+  }
+  .face:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .chosen .face { border-style: dashed; border-width: 1.5px; opacity: .75; }
+  .chosen .face[aria-pressed="true"] { border-style: solid; border-width: 3px; opacity: 1; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .face .num {
+    position: absolute; top: -12px; left: -12px; display: grid; place-items: center; width: 24px; height: 24px;
+    border-radius: 999px; background: var(--primary); color: var(--on-primary); border: 2px solid #fff;
+    font-size: 12px; font-weight: 700; line-height: 1;
+  }
+  .file-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--recess); font-size: 14px; }
+  .file-row svg { width: 18px; height: 18px; color: var(--muted); }
+  .file-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  .file-row .size { color: var(--muted); font-size: 13px; }
+
+  /* ---- face picker ---- */
+  .picker { margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--recess); font-size: 13px; }
+  .picker-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; margin-bottom: 10px; color: var(--muted); font-weight: 500; }
+  .picker-head strong { color: var(--primary); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { padding: 8px 12px; font-size: 13px; border-radius: 8px; background: var(--card); border: 1px solid var(--line-strong); gap: 6px; }
+  .chip:hover { border-color: var(--accent); }
+  .chip[aria-pressed="true"] { border: 1.5px solid var(--primary); color: var(--primary); }
+  .chip svg { width: 15px; height: 15px; }
+
+  /* ---- banners ---- */
+  .banner { display: flex; gap: 16px; align-items: flex-start; padding: 18px 22px; border-radius: 16px; border: 1px solid var(--line); background: var(--band); }
+  .banner .badge { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 999px; background: var(--card); color: var(--primary); border: 1px solid var(--line); flex: none; }
+  .banner h3 { font-size: 16px; font-weight: 600; }
+  .banner p { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .banner p b { color: var(--ink); font-weight: 700; }
+  .banner .body { flex: 1; min-width: 0; }
+  .banner.amber { background: var(--amber-bg); border-color: var(--amber-line); }
+  .banner.amber .badge { color: var(--amber-fg); }
+  .banner.danger { background: var(--diff-bg); border-color: color-mix(in srgb, var(--diff-fg) 30%, transparent); }
+  .banner.danger .badge { color: var(--diff-fg); }
+  .progress { height: 5px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 14%, transparent); margin-top: 14px; overflow: hidden; }
+  .progress span { display: block; height: 100%; width: 40%; border-radius: inherit; background: var(--primary); animation: slide 1.4s ease-in-out infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+  .inline-note { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: var(--amber-bg); border: 1px solid var(--amber-line); color: var(--ink); font-size: 14px; }
+  .inline-note svg { color: var(--amber-fg); margin-top: 1px; }
+  .inline-note.danger { background: var(--diff-bg); border-color: color-mix(in srgb, var(--diff-fg) 30%, transparent); }
+  .inline-note.danger svg { color: var(--diff-fg); }
+  .inline-note strong { display: block; font-weight: 600; }
+
+  /* ---- candidate cards ---- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; align-items: start; }
+  .cand { border-radius: 16px; padding: 14px; display: flex; flex-direction: column; }
+  .cand-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .cand-head .name { font-size: 13px; font-weight: 500; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cand .well { margin-top: 10px; padding: 6px; border-radius: 12px; }
+  .cand .picker { margin-top: 10px; }
+  .result { margin-top: 12px; }
+  .verdict {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; border-radius: 999px;
+    padding: 8px 14px 8px 8px; font-size: 14px; font-weight: 600; border: 1px solid transparent;
+  }
+  .verdict .mark { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 999px; }
+  .verdict .mark svg { width: 15px; height: 15px; stroke-width: 2.4; }
+  .verdict .lbl { display: flex; align-items: center; gap: 8px; }
+  .verdict .score { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+  .verdict.same { background: var(--same-bg); color: var(--same-fg); border-color: color-mix(in srgb, var(--same-fg) 22%, transparent); }
+  .verdict.same .mark { background: var(--same-fg); color: var(--same-bg); }
+  .verdict.diff { background: var(--diff-bg); color: var(--diff-fg); border-color: color-mix(in srgb, var(--diff-fg) 22%, transparent); }
+  .verdict.diff .mark { background: var(--diff-fg); color: var(--diff-bg); }
+  .verdict.busy { background: var(--amber-bg); color: var(--amber-fg); border-color: var(--amber-line); padding-left: 12px; justify-content: flex-start; }
+  .problem { display: flex; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--recess); font-size: 13px; line-height: 1.45; }
+  .problem svg { width: 18px; height: 18px; color: var(--muted); margin-top: 1px; }
+  .problem strong { display: block; font-weight: 600; font-size: 14px; }
+  .problem.danger svg { color: var(--diff-fg); }
+  .add-tile { border: 2px dashed var(--dash); border-radius: 16px; min-height: 220px; display: grid; place-items: center; align-content: center; gap: 8px; color: var(--primary); font-weight: 600; text-align: center; padding: 20px; background: transparent; }
+  .add-tile:hover { background: var(--accent-soft); }
+  .add-tile { line-height: 1.4; }
+  .add-tile small { display: block; margin-top: 4px; color: var(--muted); font-weight: 400; font-size: 13px; }
+  .add-tile svg { width: 26px; height: 26px; }
+  .empty-cands { text-align: center; }
+  .empty-cands.locked { opacity: .75; }
+
+  .spinner { width: 18px; height: 18px; border-radius: 999px; border: 2.2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- action bar + footer ---- */
+  .actionbar { position: sticky; bottom: 0; z-index: 5; background: color-mix(in srgb, var(--card) 94%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px -12px rgba(50, 40, 30, .12); }
+  .actionbar .wrap { display: flex; justify-content: space-between; align-items: center; gap: 24px 40px; padding-top: 16px; padding-bottom: 16px; }
+  .threshold { flex: 0 1 520px; display: grid; gap: 4px; }
+  .th-top { display: flex; align-items: center; gap: 10px; }
+  .th-top svg { color: var(--muted); width: 18px; height: 18px; }
+  .th-top label { font-weight: 600; }
+  .th-top output { color: var(--primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .th-row { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
+  .th-row input { flex: 1; accent-color: var(--primary); }
+  .th-hint { font-size: 13px; color: var(--muted); }
+  .th-hint .btn-link { font-size: 13px; padding: 0 2px; }
+  .actions { display: flex; gap: 12px; }
+  footer { border-top: 1px solid var(--line); background: var(--band); color: var(--muted); font-size: 13px; }
+  footer .wrap { display: flex; align-items: center; gap: 12px; padding-top: 18px; padding-bottom: 18px; }
+  footer svg { color: var(--primary); }
+
+  @media (max-width: 960px) {
+    .wrap { padding: 0 24px; }
+    main.wrap { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 0 16px; }
+    .topbar .pill.privacy span { display: none; }
+    .intro .wrap { padding-top: 20px; padding-bottom: 20px; }
+    h1 { font-size: 22px; }
+    main.wrap { padding-top: 20px; gap: 20px; }
+    .card-pad { padding: 20px; }
+    h2 { font-size: 18px; }
+    .title-extra { display: none; }
+    #add-btn { padding: 10px 14px; font-size: 14px; }
+    .actionbar { position: static; box-shadow: none; }
+    .card { border-radius: 20px; }
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .cand { padding: 10px; }
+    .verdict { font-size: 13px; padding-right: 10px; }
+    .verdict .mark { display: none; }
+    .verdict { padding-left: 12px; flex-wrap: wrap; border-radius: 14px; }
+    .banner { padding: 14px 16px; }
+    .banner .badge { display: none; }
+    .actionbar .wrap { flex-direction: column; align-items: stretch; gap: 12px; padding-top: 12px; padding-bottom: 12px; }
+    .threshold { flex: none; }
+    .actions { flex-direction: row-reverse; }
+    .actions .btn-primary { flex: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation-duration: 2.4s; }
+    .progress span { animation: none; width: 100%; opacity: .5; }
+    button, .btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand"><span class="brand-mark" data-icon="portrait"></span>Face Match</div>
+    <span class="pill privacy"><i data-icon="lock"></i><span>Processed on this computer · Not saved</span></span>
+  </div>
+</header>
+
+<section class="intro">
+  <div class="wrap">
+    <h1>Compare photos across the years</h1>
+    <p>Check whether photos taken years apart show the same person. Photos are processed on this computer and are not saved.</p>
+  </div>
+</section>
+
+<main class="wrap">
+  <div class="col" id="ref-col"></div>
+  <div class="col">
+    <div class="card card-pad" style="padding-top:18px;padding-bottom:18px">
+      <div class="card-head" style="align-items:center">
+        <div class="card-title" style="align-items:center">
+          <span class="count" id="cand-count">0</span>
+          <h2 id="cand-title">Photos to check</h2>
+        </div>
+        <label class="btn btn-secondary" id="add-btn"><i data-icon="addPhoto"></i>Add photos
+          <input type="file" id="cand-input" accept="image/*" multiple>
+        </label>
+      </div>
+    </div>
+    <div id="banner" aria-live="polite"></div>
+    <div id="cand-slot"></div>
+  </div>
+</main>
+
+<div class="actionbar">
+  <div class="wrap">
+    <div class="threshold">
+      <div class="th-top">
+        <i data-icon="tune"></i>
+        <label for="threshold">Match threshold:</label>
+        <output id="threshold-value" for="threshold"></output>
+      </div>
+      <div class="th-row"><span>More lenient</span><input type="range" id="threshold" min="0" max="1" step="0.01"><span>Stricter</span></div>
+      <p class="th-hint">Scores at or above this count as the same person. Higher is stricter.
+        <button type="button" class="btn-link" id="threshold-reset" hidden>Reset to default</button></p>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn-secondary" id="reset-all">Reset all</button>
+      <button type="button" class="btn-primary" id="compare" disabled></button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap"><i data-icon="shield"></i>Photos and face data are not saved. Everything runs on this computer.</div>
+</footer>
+
+<script>
+(() => {
+  // ---- icons (inline SVG so nothing is fetched from elsewhere) ----
+  const ICONS = {
+    portrait: '<rect x="4.5" y="3" width="15" height="18" rx="2.5"/><circle cx="12" cy="10" r="3"/><path d="M7.5 18c1-2.4 2.6-3.5 4.5-3.5s3.5 1.1 4.5 3.5"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    shield: '<path d="M12 3l7 3v5c0 4.5-3 8.4-7 10-4-1.6-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+    addPhoto: '<path d="M20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7"/><path d="M4 16l4.5-4.5 3 3 2-2L19 18"/><path d="M18 3v6M15 6h6"/>',
+    swap: '<path d="M4 8h15l-3.5-3.5M20 16H5l3.5 3.5"/>',
+    close: '<path d="M6 6l12 12M18 6L6 18"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
+    x: '<path d="M7 7l10 10M17 7L7 17"/>',
+    tune: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+    compare: '<path d="M12 3v18"/><path d="M9 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"/><path d="M15 5h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-3"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+    alert: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
+    faces: '<circle cx="9" cy="9" r="3"/><path d="M3.5 19c.8-3 2.9-4.5 5.5-4.5s4.7 1.5 5.5 4.5"/><circle cx="17" cy="10" r="2.4"/><path d="M16 14.6c2.3 0 4 1.3 4.6 4"/>',
+    noFace: '<circle cx="12" cy="12" r="8.5"/><path d="M9 10h.01M15 10h.01M9.5 15c1.5-1 3.5-1 5 0"/><path d="M5 5l14 14"/>',
+    image: '<rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="9" cy="9" r="1.6"/><path d="M4 16l4.5-4.5 3 3 2-2L20 19"/>',
+    file: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/>',
+    upload: '<path d="M12 16V5M7.5 9.5L12 5l4.5 4.5"/><path d="M5 19h14"/>',
+    pause: '<circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/>',
+    done: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9.5"/>',
+    hand: '<path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 10V9a1.5 1.5 0 0 1 3 0v2"/><path d="M15 10.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-.5a6 6 0 0 1-5-2.7L4 14.5a1.5 1.5 0 0 1 2.5-1.7L9 15"/>',
+  };
+  function icon(name) {
+    // The HTML parser puts inline <svg> in the SVG namespace by itself.
+    const t = document.createElement("template");
+    t.innerHTML = `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+    return t.content.firstChild;
+  }
+  document.querySelectorAll("[data-icon]").forEach((n) => {
+    const s = icon(n.dataset.icon);
+    if (n.tagName === "I") n.replaceWith(s); else n.append(s);
+  });
+
+  // ---- state ----
+  const state = { ref: null, cands: [], nextId: 1, busy: false, compared: false, error: "", notice: "" };
+  let defaultThreshold = null;
+  let thresholdOverride = null;
+
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, attrs = {}, ...children) => {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") node.className = v;
+      else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+      else if (v !== null && v !== undefined && v !== false) node.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of children.flat()) if (c !== null && c !== undefined && c !== false) node.append(c);
+    return node;
+  };
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const fmtSize = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+  const isImage = (f) => f.type.startsWith("image/") || /\.(jpe?g|png|bmp|webp|tiff?)$/i.test(f.name);
+  const makeItem = (file) => ({ id: state.nextId++, file, url: URL.createObjectURL(file), face: null, result: null });
+
+  const refStatus = () => state.ref?.result?.status ?? null;
+  const refNeedsFace = () => ["multiple_faces", "invalid_face_index"].includes(refStatus());
+
+  function clearResults() {
+    state.compared = false; state.error = ""; state.notice = "";
+    if (state.ref) state.ref.result = null;
+    state.cands.forEach((c) => (c.result = null));
+  }
+  function setReference(file) {
+    if (!file) return;
+    if (!isImage(file)) { state.notice = "That file isn't an image. Choose a JPG, PNG, WebP, TIFF or BMP photo."; render(); return; }
+    if (state.ref) URL.revokeObjectURL(state.ref.url);
+    state.ref = makeItem(file);
+    clearResults(); render();
+  }
+  function addCandidates(files) {
+    const images = files.filter(isImage);
+    images.forEach((f) => state.cands.push(makeItem(f)));
+    clearResults();
+    const skipped = files.length - images.length;
+    if (skipped) state.notice = `Skipped ${plural(skipped, "file")} that ${skipped === 1 ? "isn't an image" : "aren't images"}.`;
+    render();
+  }
+  function removeCandidate(id) {
+    const item = state.cands.find((c) => c.id === id);
+    URL.revokeObjectURL(item.url);
+    state.cands = state.cands.filter((c) => c.id !== id);
+    clearResults(); render();
+  }
+  function resetAll() {
+    if (state.ref) URL.revokeObjectURL(state.ref.url);
+    state.cands.forEach((c) => URL.revokeObjectURL(c.url));
+    state.ref = null; state.cands = [];
+    thresholdOverride = null; showThreshold();
+    clearResults(); render();
+  }
+
+  // ---- shared pieces ----
+  function fileInput(onFiles, multiple) {
+    return el("input", { type: "file", accept: "image/*", multiple, onchange: (e) => { onFiles([...e.target.files]); e.target.value = ""; } });
+  }
+  function dropTarget(node, onFiles) {
+    node.addEventListener("dragover", (e) => { e.preventDefault(); node.classList.add("dragging"); });
+    node.addEventListener("dragleave", () => node.classList.remove("dragging"));
+    node.addEventListener("drop", (e) => {
+      e.preventDefault(); node.classList.remove("dragging");
+      const files = [...e.dataTransfer.files];
+      if (files.length) onFiles(files);
+    });
+    return node;
+  }
+  function selectFace(item, index) { item.face = index; compare(); }
+
+  function photoFrame(item) {
+    const r = item.result;
+    const frame = el("div", { class: "frame" });
+    const img = el("img", { src: item.url, alt: item === state.ref ? "Reference photo" : `Photo to check: ${item.file.name}` });
+    img.addEventListener("error", () => frame.replaceChildren(
+      el("div", { class: "broken" }, icon("image"), "This file can't be shown as an image.")), { once: true });
+    frame.append(img);
+    if (r && r.faces.length > 1) {
+      const layer = el("div", { class: item.face === null ? "faces-layer" : "faces-layer chosen", style: "position:absolute;inset:0" });
+      const place = () => {
+        const w = img.naturalWidth, h = img.naturalHeight;
+        if (!w || !h) return;
+        layer.replaceChildren(...r.faces.map((f) => {
+          const [x1, y1, x2, y2] = f.bbox;
+          return el("button", {
+            type: "button", class: "face", "aria-pressed": String(item.face === f.index),
+            "aria-label": `Use face ${f.index + 1}`,
+            style: `left:${(x1 / w) * 100}%;top:${(y1 / h) * 100}%;width:${((x2 - x1) / w) * 100}%;height:${((y2 - y1) / h) * 100}%`,
+            onclick: () => selectFace(item, f.index),
+          }, el("span", { class: "num" }, String(f.index + 1)));
+        }));
+      };
+      if (img.complete) place(); else img.addEventListener("load", place, { once: true });
+      frame.append(layer);
+    }
+    return frame;
+  }
+
+  function facePicker(item) {
+    const r = item.result;
+    if (!r || r.faces.length < 2) return null;
+    return el("div", { class: "picker" },
+      el("div", { class: "picker-head" },
+        el("span", {}, `${r.faces.length} faces found`),
+        item.face === null ? el("span", {}, "No face selected yet") : el("strong", {}, `Face ${item.face + 1} selected`)),
+      el("div", { class: "chips", role: "group", "aria-label": "Choose a face" },
+        r.faces.map((f) => el("button", {
+          type: "button", class: "chip", "aria-pressed": String(item.face === f.index),
+          onclick: () => selectFace(item, f.index), disabled: state.busy,
+        }, item.face === f.index ? icon("check") : null, `Face ${f.index + 1}`))));
+  }
+
+  // ---- reference column ----
+  function renderReference() {
+    const col = $("ref-col");
+    if (!state.ref) {
+      const zone = dropTarget(el("div", { class: "dropzone" },
+        el("span", { class: "tile" }, icon("portrait")),
+        el("h3", {}, "Choose a reference photo"),
+        el("p", {}, "Drop a photo here, or choose one from your computer. Pick a clear photo of the person you know."),
+        el("label", { class: "btn btn-primary" }, icon("upload"), "Choose reference photo", fileInput((f) => setReference(f.find(isImage) || f[0]), false))),
+        (files) => setReference(files.find(isImage) || files[0]));
+      col.replaceChildren(el("section", { class: "card card-pad", "aria-labelledby": "ref-title" },
+        el("div", { class: "card-head" },
+          el("div", { class: "card-title" }, el("span", { class: "step" }, "1"),
+            el("div", {}, el("h2", { id: "ref-title" }, "Reference photo"), el("p", { class: "sub" }, "The person to match against"))),
+          el("span", { class: "pill", style: "background:var(--accent-soft);color:var(--primary);font-weight:600" }, "Start here")),
+        el("div", { style: "margin-top:22px" }, zone),
+        el("p", { class: "fineprint" }, icon("info"), "JPG, PNG, WebP, TIFF or BMP · A photo with one face works best")));
+      return;
+    }
+
+    const ref = state.ref, r = ref.result;
+    let note = null;
+    if (refNeedsFace()) {
+      note = el("div", { class: "inline-note" }, icon("hand"), el("div", {},
+        el("strong", {}, "Choose a face in the reference photo"),
+        `${plural(r.faces.length, "person")} found in this photo. Click a numbered face or a button below.`.replace("persons", "people")));
+    } else if (r && r.status === "no_face") {
+      note = el("div", { class: "inline-note danger" }, icon("noFace"), el("div", {},
+        el("strong", {}, "No face found"), "Try a photo where the face is larger and clearly visible."));
+    } else if (r && r.status === "invalid_image") {
+      note = el("div", { class: "inline-note danger" }, icon("alert"), el("div", {},
+        el("strong", {}, "This file can't be read as an image"), "Use a JPG, PNG, WebP, TIFF or BMP file."));
+    }
+
+    col.replaceChildren(el("section", { class: "card card-pad", "aria-labelledby": "ref-title" },
+      el("div", { class: "card-head" },
+        el("div", { class: "card-title" }, icon("portrait"),
+          el("div", {}, el("h2", { id: "ref-title" }, "Reference photo"), el("p", { class: "sub" }, "The person to match against"))),
+        el("label", { class: "btn btn-link" }, icon("swap"), "Replace photo", fileInput((f) => setReference(f.find(isImage) || f[0]), false))),
+      note,
+      el("div", { class: "well" }, photoFrame(ref)),
+      facePicker(ref),
+      el("div", { class: "file-row" }, icon("file"), el("span", { class: "name", title: ref.file.name }, ref.file.name), el("span", { class: "size" }, fmtSize(ref.file.size))),
+      dropTarget(el("div", { class: "drop-strip" }, icon("upload"), "Drag a photo here to replace the reference"), (files) => setReference(files.find(isImage) || files[0]))));
+  }
+
+  // ---- candidates ----
+  function candidateResult(c) {
+    if (state.busy) return el("div", { class: "verdict busy" }, el("span", { class: "spinner" }), "Comparing…");
+    const r = c.result;
+    if (!r) return null;
+    if (r.status === "no_face") return el("div", { class: "problem" }, icon("noFace"),
+      el("div", {}, el("strong", {}, "No face found"), "Try a photo where the face is larger and clearly visible."));
+    if (r.status === "invalid_image") return el("div", { class: "problem danger" }, icon("alert"),
+      el("div", {}, el("strong", {}, "This file can't be read as an image"), "Use a JPG, PNG, WebP, TIFF or BMP file."));
+    if (r.status === "invalid_face_index") return el("div", { class: "problem" }, icon("faces"),
+      el("div", {}, el("strong", {}, "That face is no longer available"), "Click a face to choose again."));
+    if (r.status === "multiple_faces") return el("div", { class: "problem" }, icon("hand"),
+      el("div", {}, el("strong", {}, "Several faces found"), "Click the face to compare."));
+    if (r.match === null) return el("div", { class: "problem" }, icon("pause"),
+      el("div", {}, el("strong", {}, refNeedsFace() ? "Waiting for the reference face" : "Waiting for the reference photo"),
+        refNeedsFace() ? "Choose a face in the reference photo first." : "Fix the reference photo to compare."));
+    return el("div", { class: `verdict ${r.match ? "same" : "diff"}` },
+      el("span", { class: "lbl" }, el("span", { class: "mark" }, icon(r.match ? "check" : "x")), r.match ? "Same person" : "Different person"),
+      el("span", { class: "score", title: "Similarity score (0–1)" }, r.score.toFixed(2)));
+  }
+
+  function candidateCard(c) {
+    return el("article", { class: "card cand" },
+      el("div", { class: "cand-head" },
+        el("span", { class: "name", title: c.file.name }, c.file.name),
+        el("button", { type: "button", class: "icon-btn", "aria-label": `Remove ${c.file.name}`, disabled: state.busy, onclick: () => removeCandidate(c.id) }, icon("close"))),
+      el("div", { class: "well" }, photoFrame(c)),
+      facePicker(c),
+      el("div", { class: "result" }, candidateResult(c)));
+  }
+
+  function renderCandidates() {
+    const n = state.cands.length;
+    $("cand-count").textContent = n;
+    // The count badge already shows the number, so narrow screens drop the "(N photos)" part.
+    $("cand-title").replaceChildren("Photos to check", n ? el("span", { class: "title-extra" }, ` (${plural(n, "photo")})`) : "");
+    const slot = $("cand-slot");
+    if (!n) {
+      slot.replaceChildren(dropTarget(el("div", { class: `card card-pad empty-cands${state.ref ? "" : " locked"}` },
+        el("div", { class: "dropzone", style: "border-style:dashed" },
+          el("span", { class: "tile" }, icon("image")),
+          el("h3", {}, "No photos to check yet"),
+          el("p", {}, state.ref
+            ? "Add one or more photos. Each one is compared with the reference photo."
+            : "After choosing a reference photo, add the photos you want to compare with it."),
+          el("label", { class: `btn ${state.ref ? "btn-primary" : "btn-secondary"}` }, icon("addPhoto"), "Add photos to check", fileInput(addCandidates, true)))),
+        addCandidates));
+      return;
+    }
+    slot.replaceChildren(el("div", { class: "grid" },
+      state.cands.map(candidateCard),
+      dropTarget(el("label", { class: "add-tile btn" }, icon("addPhoto"),
+        el("span", {}, "Add photos", el("small", {}, "or drop them here")), fileInput(addCandidates, true)), addCandidates)));
+  }
+
+  // ---- banner ----
+  function banner(kind, badge, title, body, extra) {
+    return el("div", { class: `banner ${kind}` }, el("span", { class: "badge" }, badge),
+      el("div", { class: "body" }, el("h3", {}, title), el("p", {}, ...[].concat(body)), extra));
+  }
+  function renderBanner() {
+    const slot = $("banner");
+    const n = state.cands.length;
+    let b = null;
+    if (state.busy) {
+      b = banner("", el("span", { class: "spinner" }), "Comparing photos…",
+        `Comparing ${plural(n, "photo")} with the reference on this computer. This usually takes a few seconds.`,
+        el("div", { class: "progress" }, el("span")));
+    } else if (state.error) {
+      b = banner("danger", icon("alert"), "The comparison didn't run", state.error);
+    } else if (state.compared && refNeedsFace()) {
+      b = banner("amber", icon("pause"), "Choose a face in the reference photo to compare",
+        "Comparisons are paused until you pick one. Scores update as soon as you do.");
+    } else if (state.compared && refStatus() !== "ok") {
+      b = banner("danger", icon("alert"), "The reference photo can't be used",
+        "Replace it with a clear photo of the person you know, then compare again.");
+    } else if (state.compared) {
+      const scored = state.cands.filter((c) => c.result && c.result.match !== null);
+      const same = scored.filter((c) => c.result.match).length;
+      const open = n - scored.length;
+      b = banner("", icon("done"), "Comparison complete", [
+        el("b", {}, `${same} of ${plural(scored.length, "photo")}`),
+        ` ${same === 1 ? "shows" : "show"} the same person as the reference.`,
+        open ? ` ${plural(open, "photo")} ${open === 1 ? "needs" : "need"} your attention.` : ""]);
+    } else if (state.notice) {
+      b = banner("amber", icon("info"), "Some files were skipped", state.notice);
+    }
+    slot.replaceChildren(...(b ? [b] : []));
+  }
+
+  function render() {
+    renderReference();
+    renderCandidates();
+    renderBanner();
+    const btn = $("compare");
+    const needsFace = state.compared && refNeedsFace() && !state.busy;
+    btn.disabled = state.busy || !state.ref || !state.cands.length || needsFace;
+    btn.replaceChildren(...(state.busy ? [el("span", { class: "spinner" }), "Comparing…"]
+      : needsFace ? [icon("hand"), "Select reference face"]
+      : [icon("compare"), "Compare photos"]));
+    $("reset-all").disabled = state.busy || (!state.ref && !state.cands.length && thresholdOverride === null);
+    $("add-btn").querySelector("input").disabled = state.busy;
+  }
+
+  // ---- compare ----
+  async function compare() {
+    if (!state.ref || !state.cands.length || state.busy) return;
+    const fd = new FormData();
+    fd.append("reference", state.ref.file);
+    state.cands.forEach((c) => fd.append("candidates", c.file));
+    if (state.ref.face !== null) fd.append("reference_face", state.ref.face);
+    const picks = state.cands.map((c, i) => (c.face !== null ? `${i}:${c.face}` : null)).filter(Boolean);
+    if (picks.length) fd.append("candidate_faces", picks.join(","));
+    if (thresholdOverride !== null) fd.append("threshold", thresholdOverride);
+
+    state.busy = true; state.error = ""; state.notice = ""; render();
+    try {
+      const res = await fetch("/match", { method: "POST", body: fd });
+      const body = await res.json();
+      if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "The server rejected the request.");
+      state.ref.result = body.reference;
+      body.results.forEach((r) => (state.cands[r.candidate_index].result = r));
+      state.compared = true;
+    } catch (err) {
+      state.error = err instanceof TypeError
+        ? "Can't reach the Face Match server. Check that it is still running, then try again."
+        : err.message;
+    } finally {
+      state.busy = false; render();
+    }
+  }
+
+  // ---- threshold ----
+  const slider = $("threshold"), out = $("threshold-value"), resetTh = $("threshold-reset");
+  function showThreshold() {
+    const value = thresholdOverride ?? defaultThreshold;
+    if (value === null) return;
+    slider.value = value;
+    out.textContent = thresholdOverride === null ? `${value.toFixed(2)} (default)` : value.toFixed(2);
+    resetTh.hidden = thresholdOverride === null;
+  }
+  slider.addEventListener("input", () => { thresholdOverride = Number(slider.value); showThreshold(); render(); });
+  slider.addEventListener("change", () => { if (state.compared) compare(); });
+  resetTh.addEventListener("click", () => { thresholdOverride = null; showThreshold(); render(); if (state.compared) compare(); });
+
+  $("cand-input").addEventListener("change", (e) => { addCandidates([...e.target.files]); e.target.value = ""; });
+  $("compare").addEventListener("click", compare);
+  $("reset-all").addEventListener("click", resetAll);
+
+  fetch("/health").then((r) => r.json()).then((h) => { defaultThreshold = h.threshold; showThreshold(); })
+    .catch(() => { state.error = "Can't reach the Face Match server. Check that it is still running, then reload the page."; render(); });
+  render();
+})();
+</script>
+</body>
+</html>

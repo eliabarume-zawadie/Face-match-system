@@ -1,6 +1,6 @@
 """FastAPI app: POST a reference image plus 1+ candidates, get a verdict per candidate.
 
-Run: uvicorn facematch.api:app
+Run: uvicorn facematch.api:app, then open http://localhost:8000/ for the upload page.
 """
 
 from __future__ import annotations
@@ -12,16 +12,20 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Annotated, Protocol
 
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .config import Settings, load_settings, validate_threshold
 from .engine import decode_image
 from .matching import DetectedFace, ImageAnalysis, MatchReport, match_reference, select_face
 
 request_log = logging.getLogger("facematch.requests")
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 class Detector(Protocol):
@@ -101,6 +105,11 @@ def create_app(engine: Detector | None = None, settings: Settings | None = None)
 
     app = FastAPI(title="Face Match", version="0.1.0", lifespan=lifespan)
     app.state.engine = engine
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.get("/", include_in_schema=False)
+    def index() -> FileResponse:
+        return FileResponse(STATIC_DIR / "index.html")
 
     @app.get("/health")
     def health() -> dict:
