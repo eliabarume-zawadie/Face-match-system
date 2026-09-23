@@ -12,7 +12,7 @@
 
 | Goal | Metric | Target (v1) |
 |---|---|---|
-| Correctly match same-person images across age gaps | True Accept Rate (TAR) on FG-NET/AgeDB eval set | ≥ 90% at fixed FAR |
+| Correctly match same-person images across age gaps | True Accept Rate (TAR) on FG-NET **adult pairs** (both photos age ≥ 18) at the operating threshold; the use case is adult-to-adult (Section 10) | ≥ 90% at fixed FAR |
 | Correctly reject different-person images | False Accept Rate (FAR) | ≤ 1% |
 | Handle pose/angle variation | TAR on profile-vs-frontal pairs | ≥ 85% |
 | Inference speed | Latency per match (2 images) | < 2s on CPU, < 500ms on GPU |
@@ -111,4 +111,17 @@ Success is measured against a held-out validation set using ROC curve / Equal Er
 - **Logging:** metadata only, no biometric data on disk (confirmed).
 - **Model license:** InsightFace pretrained weights are non-commercial only — accepted, since this is a personal tool. Any future commercial use requires swapping to a commercially licensed model.
 
+- **Age range of real comparisons:** adult to adult (confirmed after Phase 1). The age-gap target is therefore measured on FG-NET pairs where both photos are age ≥ 18. Childhood-to-adult matching is not a goal; the all-ages FG-NET number is still reported for reference.
+
 No remaining open questions block starting Phase 1.
+
+## 11. Phase 1 Results (baseline, pretrained `buffalo_l`)
+
+Full report: `evaluation/results/summary.md`. Operating threshold 0.2589 (FG-NET, FAR = 1%).
+
+- Age gap, adult pairs: TAR 99.48% at FAR 0.65% (target ≥ 90% at ≤ 1%) — **met**. Weakest bin: 30+ year gaps, 93.3% (60 pairs).
+- Pose, CFP-FP: TAR 96.29% at FAR 0.00% (target ≥ 85%) — **met**.
+- Latency: ~0.9–1.2s per match on CPU (target < 2s) — **met**.
+- All-ages FG-NET (reference only): TAR 85.42% at FAR 1%; the gap is child-to-adult pairs (57.7%).
+
+**Decision:** baseline meets every v1 target for the confirmed use case, so the Phase 2 age-invariance work (Section 5.1 step 4) is **not triggered**. Revisit only if real adult photo spot-checks disagree with these numbers.
