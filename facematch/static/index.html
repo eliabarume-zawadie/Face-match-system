@@ -6,6 +6,13 @@
 <title>Face Match</title>
 <!-- Design: Google Stitch "Kinship & Memory" (stitch_face_match/). Everything is served locally:
      no fonts, scripts, icons or images are loaded from other sites. -->
+<script>
+  // Apply a saved Light/Dark choice before first paint; otherwise the Windows setting applies.
+  try {
+    const saved = localStorage.getItem("facematch-theme");
+    if (saved === "dark" || saved === "light") document.documentElement.dataset.theme = saved;
+  } catch (e) { /* storage unavailable: follow the system setting */ }
+</script>
 <style>
   @font-face {
     font-family: "Plus Jakarta Sans";
@@ -97,14 +104,27 @@
   .intro p { color: var(--muted); margin-top: 6px; }
 
   /* ---- layout ---- */
-  main.wrap { display: grid; grid-template-columns: minmax(300px, 5fr) 7fr; gap: 32px; align-items: start; padding-top: 36px; padding-bottom: 48px; flex: 1; }
+  #groups { display: grid; gap: 48px; align-content: start; padding-top: 36px; padding-bottom: 28px; flex: 1; }
+  .group-grid { display: grid; grid-template-columns: minmax(300px, 5fr) 7fr; gap: 32px; align-items: start; }
+  .group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .group-head h2 { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .group-head h2:focus { outline: none; }
+  .group-head .meta { color: var(--muted); font-size: 14px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .add-ref-row { padding-bottom: 40px; }
+  button.add-ref { width: 100%; border: 2px dashed var(--dash); border-radius: 16px; padding: 18px; color: var(--primary); }
+  button.add-ref:hover { background: var(--accent-soft); }
+  .add-ref .meta { color: var(--muted); font-weight: 400; }
+  .topbar-actions { display: flex; align-items: center; gap: 10px; }
+  button.theme-toggle { gap: 8px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; font-weight: 500; box-shadow: var(--shadow); }
+  button.theme-toggle:hover { background: var(--recess); }
+  .theme-toggle svg { width: 18px; height: 18px; color: var(--primary); }
   .col { display: grid; gap: 20px; min-width: 0; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); }
   .card-pad { padding: 28px; }
   .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
   .card-title { display: flex; gap: 12px; align-items: flex-start; }
   .card-title svg { color: var(--primary); margin-top: 3px; }
-  h2 { font-size: 20px; line-height: 1.35; font-weight: 600; letter-spacing: -.01em; }
+  h2, .h2like { font-size: 20px; line-height: 1.35; font-weight: 600; letter-spacing: -.01em; margin: 0; }
   .sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
   .step { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 999px; background: var(--primary); color: var(--on-primary); font-weight: 700; font-size: 14px; flex: none; }
   .step.idle { background: var(--band); color: var(--muted); }
@@ -258,18 +278,21 @@
 
   @media (max-width: 960px) {
     .wrap { padding: 0 24px; }
-    main.wrap { grid-template-columns: 1fr; }
+    .group-grid { grid-template-columns: 1fr; }
   }
   @media (max-width: 640px) {
     .wrap { padding: 0 16px; }
     .topbar .pill.privacy span { display: none; }
     .intro .wrap { padding-top: 20px; padding-bottom: 20px; }
     h1 { font-size: 22px; }
-    main.wrap { padding-top: 20px; gap: 20px; }
+    #groups { padding-top: 20px; gap: 36px; }
+    .group-grid { gap: 20px; }
+    .theme-toggle span { display: none; }
+    button.theme-toggle { padding: 7px; }
     .card-pad { padding: 20px; }
-    h2 { font-size: 18px; }
+    h2, .h2like { font-size: 18px; }
     .title-extra { display: none; }
-    #add-btn { padding: 10px 14px; font-size: 14px; }
+    .add-btn { padding: 10px 14px; font-size: 14px; }
     .actionbar { position: static; box-shadow: none; }
     .card { border-radius: 20px; }
     .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -295,7 +318,10 @@
 <header class="topbar">
   <div class="wrap">
     <div class="brand"><span class="brand-mark" data-icon="portrait"></span>Face Match</div>
-    <span class="pill privacy"><i data-icon="lock"></i><span>Processed on this computer · Not saved</span></span>
+    <div class="topbar-actions">
+      <span class="pill privacy"><i data-icon="lock"></i><span>Processed on this computer · Not saved</span></span>
+      <button type="button" class="theme-toggle" id="theme-toggle"></button>
+    </div>
   </div>
 </header>
 
@@ -306,24 +332,11 @@
   </div>
 </section>
 
-<main class="wrap">
-  <div class="col" id="ref-col"></div>
-  <div class="col">
-    <div class="card card-pad" style="padding-top:18px;padding-bottom:18px">
-      <div class="card-head" style="align-items:center">
-        <div class="card-title" style="align-items:center">
-          <span class="count" id="cand-count">0</span>
-          <h2 id="cand-title">Photos to check</h2>
-        </div>
-        <label class="btn btn-secondary" id="add-btn"><i data-icon="addPhoto"></i>Add photos
-          <input type="file" id="cand-input" accept="image/*" multiple>
-        </label>
-      </div>
-    </div>
-    <div id="banner" aria-live="polite"></div>
-    <div id="cand-slot"></div>
-  </div>
-</main>
+<main class="wrap" id="groups"></main>
+
+<div class="wrap add-ref-row">
+  <button type="button" class="add-ref" id="add-group"></button>
+</div>
 
 <div class="actionbar">
   <div class="wrap">
@@ -371,6 +384,10 @@
     upload: '<path d="M12 16V5M7.5 9.5L12 5l4.5 4.5"/><path d="M5 19h14"/>',
     pause: '<circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/>',
     done: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9.5"/>',
+    moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
     hand: '<path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 10V9a1.5 1.5 0 0 1 3 0v2"/><path d="M15 10.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-.5a6 6 0 0 1-5-2.7L4 14.5a1.5 1.5 0 0 1 2.5-1.7L9 15"/>',
   };
   function icon(name) {
@@ -385,7 +402,9 @@
   });
 
   // ---- state ----
-  const state = { ref: null, cands: [], nextId: 1, busy: false, compared: false, error: "", notice: "" };
+  // Each group is one reference photo with its own photos to check. Up to MAX_REFS groups.
+  const MAX_REFS = 10;
+  const state = { groups: [], nextId: 1, busy: false, progress: null, error: "" };
   let defaultThreshold = null;
   let thresholdOverride = null;
 
@@ -404,47 +423,70 @@
   const fmtSize = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
   const isImage = (f) => f.type.startsWith("image/") || /\.(jpe?g|png|bmp|webp|tiff?)$/i.test(f.name);
   const makeItem = (file) => ({ id: state.nextId++, file, url: URL.createObjectURL(file), face: null, result: null });
+  const makeGroup = () => ({ id: state.nextId++, ref: null, cands: [], compared: false, busy: false, queued: false, error: "", notice: "" });
+  const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  const refStatus = () => state.ref?.result?.status ?? null;
-  const refNeedsFace = () => ["multiple_faces", "invalid_face_index"].includes(refStatus());
+  const refStatus = (g) => g.ref?.result?.status ?? null;
+  const refNeedsFace = (g) => ["multiple_faces", "invalid_face_index"].includes(refStatus(g));
+  const isReady = (g) => Boolean(g.ref && g.cands.length);
 
-  function clearResults() {
-    state.compared = false; state.error = ""; state.notice = "";
-    if (state.ref) state.ref.result = null;
-    state.cands.forEach((c) => (c.result = null));
+  function clearResults(g) {
+    g.compared = false; g.error = ""; g.notice = "";
+    if (g.ref) g.ref.result = null;
+    g.cands.forEach((c) => (c.result = null));
   }
-  function setReference(file) {
+  function setReference(g, file) {
     if (!file) return;
-    if (!isImage(file)) { state.notice = "That file isn't an image. Choose a JPG, PNG, WebP, TIFF or BMP photo."; render(); return; }
-    if (state.ref) URL.revokeObjectURL(state.ref.url);
-    state.ref = makeItem(file);
-    clearResults(); render();
+    if (!isImage(file)) { g.notice = "That file isn't an image. Choose a JPG, PNG, WebP, TIFF or BMP photo."; render(); return; }
+    if (g.ref) URL.revokeObjectURL(g.ref.url);
+    g.ref = makeItem(file);
+    clearResults(g); render();
   }
-  function addCandidates(files) {
+  function addCandidates(g, files) {
     const images = files.filter(isImage);
-    images.forEach((f) => state.cands.push(makeItem(f)));
-    clearResults();
+    images.forEach((f) => g.cands.push(makeItem(f)));
+    clearResults(g);
     const skipped = files.length - images.length;
-    if (skipped) state.notice = `Skipped ${plural(skipped, "file")} that ${skipped === 1 ? "isn't an image" : "aren't images"}.`;
+    if (skipped) g.notice = `Skipped ${plural(skipped, "file")} that ${skipped === 1 ? "isn't an image" : "aren't images"}.`;
     render();
   }
-  function removeCandidate(id) {
-    const item = state.cands.find((c) => c.id === id);
+  function removeCandidate(g, id) {
+    const item = g.cands.find((c) => c.id === id);
     URL.revokeObjectURL(item.url);
-    state.cands = state.cands.filter((c) => c.id !== id);
-    clearResults(); render();
+    g.cands = g.cands.filter((c) => c.id !== id);
+    clearResults(g); render();
+  }
+  function revokeGroup(g) {
+    if (g.ref) URL.revokeObjectURL(g.ref.url);
+    g.cands.forEach((c) => URL.revokeObjectURL(c.url));
+  }
+  function addGroup() {
+    if (state.groups.length >= MAX_REFS || state.busy) return;
+    const g = makeGroup();
+    state.groups.push(g);
+    render();
+    const heading = document.querySelector(`[data-group="${g.id}"] h2`);
+    heading?.scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "start" });
+    heading?.focus({ preventScroll: true });
+  }
+  function removeGroup(g) {
+    revokeGroup(g);
+    state.groups = state.groups.filter((x) => x !== g);
+    if (!state.groups.length) state.groups.push(makeGroup());
+    render();
   }
   function resetAll() {
-    if (state.ref) URL.revokeObjectURL(state.ref.url);
-    state.cands.forEach((c) => URL.revokeObjectURL(c.url));
-    state.ref = null; state.cands = [];
+    state.groups.forEach(revokeGroup);
+    state.groups = [makeGroup()];
+    state.error = "";
     thresholdOverride = null; showThreshold();
-    clearResults(); render();
+    render();
   }
 
   // ---- shared pieces ----
   function fileInput(onFiles, multiple) {
-    return el("input", { type: "file", accept: "image/*", multiple, onchange: (e) => { onFiles([...e.target.files]); e.target.value = ""; } });
+    return el("input", { type: "file", accept: "image/*", multiple, disabled: state.busy,
+      onchange: (e) => { onFiles([...e.target.files]); e.target.value = ""; } });
   }
   function dropTarget(node, onFiles) {
     node.addEventListener("dragover", (e) => { e.preventDefault(); node.classList.add("dragging"); });
@@ -452,16 +494,16 @@
     node.addEventListener("drop", (e) => {
       e.preventDefault(); node.classList.remove("dragging");
       const files = [...e.dataTransfer.files];
-      if (files.length) onFiles(files);
+      if (files.length && !state.busy) onFiles(files);
     });
     return node;
   }
-  function selectFace(item, index) { item.face = index; compare(); }
+  function selectFace(g, item, index) { item.face = index; runComparisons([g]); }
 
-  function photoFrame(item) {
+  function photoFrame(g, item) {
     const r = item.result;
     const frame = el("div", { class: "frame" });
-    const img = el("img", { src: item.url, alt: item === state.ref ? "Reference photo" : `Photo to check: ${item.file.name}` });
+    const img = el("img", { src: item.url, alt: item === g.ref ? "Reference photo" : `Photo to check: ${item.file.name}` });
     img.addEventListener("error", () => frame.replaceChildren(
       el("div", { class: "broken" }, icon("image"), "This file can't be shown as an image.")), { once: true });
     frame.append(img);
@@ -474,9 +516,9 @@
           const [x1, y1, x2, y2] = f.bbox;
           return el("button", {
             type: "button", class: "face", "aria-pressed": String(item.face === f.index),
-            "aria-label": `Use face ${f.index + 1}`,
+            "aria-label": `Use face ${f.index + 1}`, disabled: state.busy,
             style: `left:${(x1 / w) * 100}%;top:${(y1 / h) * 100}%;width:${((x2 - x1) / w) * 100}%;height:${((y2 - y1) / h) * 100}%`,
-            onclick: () => selectFace(item, f.index),
+            onclick: () => selectFace(g, item, f.index),
           }, el("span", { class: "num" }, String(f.index + 1)));
         }));
       };
@@ -486,7 +528,7 @@
     return frame;
   }
 
-  function facePicker(item) {
+  function facePicker(g, item) {
     const r = item.result;
     if (!r || r.faces.length < 2) return null;
     return el("div", { class: "picker" },
@@ -496,36 +538,35 @@
       el("div", { class: "chips", role: "group", "aria-label": "Choose a face" },
         r.faces.map((f) => el("button", {
           type: "button", class: "chip", "aria-pressed": String(item.face === f.index),
-          onclick: () => selectFace(item, f.index), disabled: state.busy,
+          onclick: () => selectFace(g, item, f.index), disabled: state.busy,
         }, item.face === f.index ? icon("check") : null, `Face ${f.index + 1}`))));
   }
 
   // ---- reference column ----
-  function renderReference() {
-    const col = $("ref-col");
-    if (!state.ref) {
-      const zone = dropTarget(el("div", { class: "dropzone" },
-        el("span", { class: "tile" }, icon("portrait")),
-        el("h3", {}, "Choose a reference photo"),
-        el("p", {}, "Drop a photo here, or choose one from your computer. Pick a clear photo of the person you know."),
-        el("label", { class: "btn btn-primary" }, icon("upload"), "Choose reference photo", fileInput((f) => setReference(f.find(isImage) || f[0]), false))),
-        (files) => setReference(files.find(isImage) || files[0]));
-      col.replaceChildren(el("section", { class: "card card-pad", "aria-labelledby": "ref-title" },
+  function referenceCard(g, n) {
+    const pick = (files) => setReference(g, files.find(isImage) || files[0]);
+    if (!g.ref) {
+      return el("section", { class: "card card-pad" },
         el("div", { class: "card-head" },
-          el("div", { class: "card-title" }, el("span", { class: "step" }, "1"),
-            el("div", {}, el("h2", { id: "ref-title" }, "Reference photo"), el("p", { class: "sub" }, "The person to match against"))),
+          el("div", { class: "card-title" }, el("span", { class: "step" }, String(n)),
+            el("div", {}, el("h3", { class: "h2like" }, "Reference photo"), el("p", { class: "sub" }, "The person to match against"))),
           el("span", { class: "pill", style: "background:var(--accent-soft);color:var(--primary);font-weight:600" }, "Start here")),
-        el("div", { style: "margin-top:22px" }, zone),
-        el("p", { class: "fineprint" }, icon("info"), "JPG, PNG, WebP, TIFF or BMP · A photo with one face works best")));
-      return;
+        el("div", { style: "margin-top:22px" }, dropTarget(el("div", { class: "dropzone" },
+          el("span", { class: "tile" }, icon("portrait")),
+          el("h3", {}, "Choose a reference photo"),
+          el("p", {}, "Drop a photo here, or choose one from your computer. Pick a clear photo of the person you know."),
+          el("label", { class: "btn btn-primary" }, icon("upload"), "Choose reference photo", fileInput(pick, false))), pick)),
+        g.notice ? el("div", { class: "inline-note" }, icon("info"), el("div", {}, g.notice)) : null,
+        el("p", { class: "fineprint" }, icon("info"), "JPG, PNG, WebP, TIFF or BMP · A photo with one face works best"));
     }
 
-    const ref = state.ref, r = ref.result;
+    const ref = g.ref, r = ref.result;
     let note = null;
-    if (refNeedsFace()) {
+    if (refNeedsFace(g)) {
+      const people = r.faces.length === 1 ? "1 person" : `${r.faces.length} people`;
       note = el("div", { class: "inline-note" }, icon("hand"), el("div", {},
         el("strong", {}, "Choose a face in the reference photo"),
-        `${plural(r.faces.length, "person")} found in this photo. Click a numbered face or a button below.`.replace("persons", "people")));
+        `${people} found in this photo. Click a numbered face or a button below.`));
     } else if (r && r.status === "no_face") {
       note = el("div", { class: "inline-note danger" }, icon("noFace"), el("div", {},
         el("strong", {}, "No face found"), "Try a photo where the face is larger and clearly visible."));
@@ -534,21 +575,22 @@
         el("strong", {}, "This file can't be read as an image"), "Use a JPG, PNG, WebP, TIFF or BMP file."));
     }
 
-    col.replaceChildren(el("section", { class: "card card-pad", "aria-labelledby": "ref-title" },
+    return el("section", { class: "card card-pad" },
       el("div", { class: "card-head" },
         el("div", { class: "card-title" }, icon("portrait"),
-          el("div", {}, el("h2", { id: "ref-title" }, "Reference photo"), el("p", { class: "sub" }, "The person to match against"))),
-        el("label", { class: "btn btn-link" }, icon("swap"), "Replace photo", fileInput((f) => setReference(f.find(isImage) || f[0]), false))),
+          el("div", {}, el("h3", { class: "h2like" }, "Reference photo"), el("p", { class: "sub" }, "The person to match against"))),
+        el("label", { class: "btn btn-link" }, icon("swap"), "Replace photo", fileInput(pick, false))),
       note,
-      el("div", { class: "well" }, photoFrame(ref)),
-      facePicker(ref),
+      el("div", { class: "well" }, photoFrame(g, ref)),
+      facePicker(g, ref),
       el("div", { class: "file-row" }, icon("file"), el("span", { class: "name", title: ref.file.name }, ref.file.name), el("span", { class: "size" }, fmtSize(ref.file.size))),
-      dropTarget(el("div", { class: "drop-strip" }, icon("upload"), "Drag a photo here to replace the reference"), (files) => setReference(files.find(isImage) || files[0]))));
+      dropTarget(el("div", { class: "drop-strip" }, icon("upload"), "Drag a photo here to replace the reference"), pick));
   }
 
   // ---- candidates ----
-  function candidateResult(c) {
-    if (state.busy) return el("div", { class: "verdict busy" }, el("span", { class: "spinner" }), "Comparing…");
+  function candidateResult(g, c) {
+    if (g.busy) return el("div", { class: "verdict busy" }, el("span", { class: "spinner" }), "Comparing…");
+    if (g.queued) return el("div", { class: "verdict busy" }, icon("pause"), "Waiting to compare");
     const r = c.result;
     if (!r) return null;
     if (r.status === "no_face") return el("div", { class: "problem" }, icon("noFace"),
@@ -560,122 +602,180 @@
     if (r.status === "multiple_faces") return el("div", { class: "problem" }, icon("hand"),
       el("div", {}, el("strong", {}, "Several faces found"), "Click the face to compare."));
     if (r.match === null) return el("div", { class: "problem" }, icon("pause"),
-      el("div", {}, el("strong", {}, refNeedsFace() ? "Waiting for the reference face" : "Waiting for the reference photo"),
-        refNeedsFace() ? "Choose a face in the reference photo first." : "Fix the reference photo to compare."));
+      el("div", {}, el("strong", {}, refNeedsFace(g) ? "Waiting for the reference face" : "Waiting for the reference photo"),
+        refNeedsFace(g) ? "Choose a face in the reference photo first." : "Fix the reference photo to compare."));
     return el("div", { class: `verdict ${r.match ? "same" : "diff"}` },
       el("span", { class: "lbl" }, el("span", { class: "mark" }, icon(r.match ? "check" : "x")), r.match ? "Same person" : "Different person"),
       el("span", { class: "score", title: "Similarity score (0–1)" }, r.score.toFixed(2)));
   }
 
-  function candidateCard(c) {
+  function candidateCard(g, c) {
     return el("article", { class: "card cand" },
       el("div", { class: "cand-head" },
         el("span", { class: "name", title: c.file.name }, c.file.name),
-        el("button", { type: "button", class: "icon-btn", "aria-label": `Remove ${c.file.name}`, disabled: state.busy, onclick: () => removeCandidate(c.id) }, icon("close"))),
-      el("div", { class: "well" }, photoFrame(c)),
-      facePicker(c),
-      el("div", { class: "result" }, candidateResult(c)));
+        el("button", { type: "button", class: "icon-btn", "aria-label": `Remove ${c.file.name}`, disabled: state.busy, onclick: () => removeCandidate(g, c.id) }, icon("close"))),
+      el("div", { class: "well" }, photoFrame(g, c)),
+      facePicker(g, c),
+      el("div", { class: "result" }, candidateResult(g, c)));
   }
 
-  function renderCandidates() {
-    const n = state.cands.length;
-    $("cand-count").textContent = n;
-    // The count badge already shows the number, so narrow screens drop the "(N photos)" part.
-    $("cand-title").replaceChildren("Photos to check", n ? el("span", { class: "title-extra" }, ` (${plural(n, "photo")})`) : "");
-    const slot = $("cand-slot");
-    if (!n) {
-      slot.replaceChildren(dropTarget(el("div", { class: `card card-pad empty-cands${state.ref ? "" : " locked"}` },
-        el("div", { class: "dropzone", style: "border-style:dashed" },
-          el("span", { class: "tile" }, icon("image")),
-          el("h3", {}, "No photos to check yet"),
-          el("p", {}, state.ref
-            ? "Add one or more photos. Each one is compared with the reference photo."
-            : "After choosing a reference photo, add the photos you want to compare with it."),
-          el("label", { class: `btn ${state.ref ? "btn-primary" : "btn-secondary"}` }, icon("addPhoto"), "Add photos to check", fileInput(addCandidates, true)))),
-        addCandidates));
-      return;
-    }
-    slot.replaceChildren(el("div", { class: "grid" },
-      state.cands.map(candidateCard),
-      dropTarget(el("label", { class: "add-tile btn" }, icon("addPhoto"),
-        el("span", {}, "Add photos", el("small", {}, "or drop them here")), fileInput(addCandidates, true)), addCandidates)));
+  function candidatesColumn(g) {
+    const n = g.cands.length;
+    const add = (files) => addCandidates(g, files);
+    const head = el("div", { class: "card card-pad", style: "padding-top:18px;padding-bottom:18px" },
+      el("div", { class: "card-head", style: "align-items:center" },
+        el("div", { class: "card-title", style: "align-items:center" },
+          el("span", { class: "count" }, String(n)),
+          el("h3", { class: "h2like" }, "Photos to check", n ? el("span", { class: "title-extra" }, ` (${plural(n, "photo")})`) : null)),
+        el("label", { class: "btn btn-secondary add-btn" }, icon("addPhoto"), "Add photos", fileInput(add, true))));
+
+    const body = n
+      ? el("div", { class: "grid" }, g.cands.map((c) => candidateCard(g, c)),
+          dropTarget(el("label", { class: "add-tile btn" }, icon("addPhoto"),
+            el("span", {}, "Add photos", el("small", {}, "or drop them here")), fileInput(add, true)), add))
+      : dropTarget(el("div", { class: `card card-pad empty-cands${g.ref ? "" : " locked"}` },
+          el("div", { class: "dropzone" },
+            el("span", { class: "tile" }, icon("image")),
+            el("h3", {}, "No photos to check yet"),
+            el("p", {}, g.ref
+              ? "Add one or more photos. Each one is compared with this reference photo."
+              : "After choosing a reference photo, add the photos you want to compare with it."),
+            el("label", { class: `btn ${g.ref ? "btn-primary" : "btn-secondary"}` }, icon("addPhoto"), "Add photos to check", fileInput(add, true)))), add);
+
+    return el("div", { class: "col" }, head, el("div", { "aria-live": "polite" }, groupBanner(g)), body);
   }
 
-  // ---- banner ----
+  // ---- banners ----
   function banner(kind, badge, title, body, extra) {
     return el("div", { class: `banner ${kind}` }, el("span", { class: "badge" }, badge),
       el("div", { class: "body" }, el("h3", {}, title), el("p", {}, ...[].concat(body)), extra));
   }
-  function renderBanner() {
-    const slot = $("banner");
-    const n = state.cands.length;
-    let b = null;
-    if (state.busy) {
-      b = banner("", el("span", { class: "spinner" }), "Comparing photos…",
-        `Comparing ${plural(n, "photo")} with the reference on this computer. This usually takes a few seconds.`,
+  function groupSummary(g) {
+    const scored = g.cands.filter((c) => c.result && c.result.match !== null);
+    return { scored: scored.length, same: scored.filter((c) => c.result.match).length, open: g.cands.length - scored.length };
+  }
+  function groupBanner(g) {
+    const n = g.cands.length;
+    if (g.busy) {
+      return banner("", el("span", { class: "spinner" }), "Comparing photos…",
+        `Comparing ${plural(n, "photo")} with this reference on this computer. This usually takes a few seconds.`,
         el("div", { class: "progress" }, el("span")));
-    } else if (state.error) {
-      b = banner("danger", icon("alert"), "The comparison didn't run", state.error);
-    } else if (state.compared && refNeedsFace()) {
-      b = banner("amber", icon("pause"), "Choose a face in the reference photo to compare",
+    }
+    if (g.queued) return banner("", icon("pause"), "Waiting to compare", "This reference is compared after the ones above it.");
+    if (g.error) return banner("danger", icon("alert"), "The comparison didn't run", g.error);
+    if (g.compared && refNeedsFace(g)) {
+      return banner("amber", icon("pause"), "Choose a face in the reference photo to compare",
         "Comparisons are paused until you pick one. Scores update as soon as you do.");
-    } else if (state.compared && refStatus() !== "ok") {
-      b = banner("danger", icon("alert"), "The reference photo can't be used",
+    }
+    if (g.compared && refStatus(g) !== "ok") {
+      return banner("danger", icon("alert"), "The reference photo can't be used",
         "Replace it with a clear photo of the person you know, then compare again.");
-    } else if (state.compared) {
-      const scored = state.cands.filter((c) => c.result && c.result.match !== null);
-      const same = scored.filter((c) => c.result.match).length;
-      const open = n - scored.length;
-      b = banner("", icon("done"), "Comparison complete", [
-        el("b", {}, `${same} of ${plural(scored.length, "photo")}`),
+    }
+    if (g.compared) {
+      const { scored, same, open } = groupSummary(g);
+      return banner("", icon("done"), "Comparison complete", [
+        el("b", {}, `${same} of ${plural(scored, "photo")}`),
         ` ${same === 1 ? "shows" : "show"} the same person as the reference.`,
         open ? ` ${plural(open, "photo")} ${open === 1 ? "needs" : "need"} your attention.` : ""]);
-    } else if (state.notice) {
-      b = banner("amber", icon("info"), "Some files were skipped", state.notice);
     }
-    slot.replaceChildren(...(b ? [b] : []));
+    if (g.notice && g.ref) return banner("amber", icon("info"), "Some files were skipped", g.notice);
+    return null;
+  }
+  function overallBanner() {
+    if (state.error) return banner("danger", icon("alert"), "Can't reach the Face Match server", state.error);
+    const done = state.groups.filter((g) => g.compared && refStatus(g) === "ok");
+    if (state.busy || state.groups.length < 2 || done.length < 2) return null;
+    const totals = done.map(groupSummary).reduce((a, s) => ({ scored: a.scored + s.scored, same: a.same + s.same }), { scored: 0, same: 0 });
+    return banner("", icon("done"), `Compared ${plural(done.length, "reference")}`, [
+      el("b", {}, `${totals.same} of ${plural(totals.scored, "photo")}`),
+      ` ${totals.same === 1 ? "shows" : "show"} the same person as ${totals.same === 1 ? "its" : "their"} reference. Details are under each reference below.`]);
+  }
+
+  // ---- render ----
+  function groupSection(g, i) {
+    const multi = state.groups.length > 1;
+    const head = multi
+      ? el("div", { class: "group-head" },
+          el("h2", { tabindex: "-1" }, el("span", { class: "step" }, String(i + 1)), `Reference ${i + 1}`,
+            el("span", { class: "meta" }, g.ref ? `· ${g.ref.file.name}` : "· no photo yet")),
+          el("button", { type: "button", class: "btn-link", disabled: state.busy, onclick: () => removeGroup(g),
+            "aria-label": `Remove reference ${i + 1} and its photos` }, icon("trash"), "Remove"))
+      : null;
+    return el("section", { class: "group", "data-group": String(g.id), "aria-label": `Reference ${i + 1}` },
+      head,
+      el("div", { class: "group-grid" }, el("div", { class: "col" }, referenceCard(g, i + 1)), candidatesColumn(g)));
   }
 
   function render() {
-    renderReference();
-    renderCandidates();
-    renderBanner();
+    const overall = overallBanner();
+    $("groups").replaceChildren(...(overall ? [overall] : []), ...state.groups.map(groupSection));
+
+    const count = state.groups.length;
+    const addBtn = $("add-group");
+    addBtn.disabled = state.busy || count >= MAX_REFS;
+    addBtn.replaceChildren(...(count >= MAX_REFS
+      ? [`Maximum of ${MAX_REFS} references reached`]
+      : [icon("plus"), "Add another reference", el("span", { class: "meta" }, `(${count} of ${MAX_REFS})`)]));
+
+    const ready = state.groups.filter(isReady);
+    const single = count === 1 ? state.groups[0] : null;
+    const needsFace = !state.busy && single && single.compared && refNeedsFace(single);
     const btn = $("compare");
-    const needsFace = state.compared && refNeedsFace() && !state.busy;
-    btn.disabled = state.busy || !state.ref || !state.cands.length || needsFace;
-    btn.replaceChildren(...(state.busy ? [el("span", { class: "spinner" }), "Comparing…"]
+    btn.disabled = state.busy || !ready.length || needsFace;
+    const busyLabel = state.progress && state.progress.total > 1
+      ? `Comparing ${state.progress.done + 1} of ${state.progress.total}…` : "Comparing…";
+    btn.replaceChildren(...(state.busy ? [el("span", { class: "spinner" }), busyLabel]
       : needsFace ? [icon("hand"), "Select reference face"]
+      : ready.length > 1 ? [icon("compare"), `Compare all (${ready.length})`]
       : [icon("compare"), "Compare photos"]));
-    $("reset-all").disabled = state.busy || (!state.ref && !state.cands.length && thresholdOverride === null);
-    $("add-btn").querySelector("input").disabled = state.busy;
+    $("reset-all").disabled = state.busy || (count === 1 && !single.ref && !single.cands.length && thresholdOverride === null);
   }
 
   // ---- compare ----
-  async function compare() {
-    if (!state.ref || !state.cands.length || state.busy) return;
+  async function compareGroup(g) {
     const fd = new FormData();
-    fd.append("reference", state.ref.file);
-    state.cands.forEach((c) => fd.append("candidates", c.file));
-    if (state.ref.face !== null) fd.append("reference_face", state.ref.face);
-    const picks = state.cands.map((c, i) => (c.face !== null ? `${i}:${c.face}` : null)).filter(Boolean);
+    fd.append("reference", g.ref.file);
+    g.cands.forEach((c) => fd.append("candidates", c.file));
+    if (g.ref.face !== null) fd.append("reference_face", g.ref.face);
+    const picks = g.cands.map((c, i) => (c.face !== null ? `${i}:${c.face}` : null)).filter(Boolean);
     if (picks.length) fd.append("candidate_faces", picks.join(","));
     if (thresholdOverride !== null) fd.append("threshold", thresholdOverride);
 
-    state.busy = true; state.error = ""; state.notice = ""; render();
-    try {
-      const res = await fetch("/match", { method: "POST", body: fd });
-      const body = await res.json();
-      if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "The server rejected the request.");
-      state.ref.result = body.reference;
-      body.results.forEach((r) => (state.cands[r.candidate_index].result = r));
-      state.compared = true;
-    } catch (err) {
-      state.error = err instanceof TypeError
-        ? "Can't reach the Face Match server. Check that it is still running, then try again."
-        : err.message;
-    } finally {
-      state.busy = false; render();
+    const res = await fetch("/match", { method: "POST", body: fd });
+    const body = await res.json();
+    if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : "The server rejected the request.");
+    g.ref.result = body.reference;
+    body.results.forEach((r) => (g.cands[r.candidate_index].result = r));
+    g.compared = true;
+  }
+
+  // Groups run one after another: the model already uses every CPU core, so running
+  // them at the same time would not finish sooner.
+  async function runComparisons(groups) {
+    const todo = groups.filter(isReady);
+    if (!todo.length || state.busy) return;
+    state.busy = true; state.error = "";
+    todo.forEach((g) => { g.queued = true; g.error = ""; g.notice = ""; });
+    render();
+    for (const [i, g] of todo.entries()) {
+      g.queued = false; g.busy = true;
+      state.progress = { done: i, total: todo.length };
+      render();
+      try {
+        await compareGroup(g);
+      } catch (err) {
+        if (err instanceof TypeError) {
+          state.error = "Check that the server is still running, then try again.";
+          todo.forEach((x) => (x.queued = false));
+          g.busy = false;
+          break;
+        }
+        g.error = err.message;
+      }
+      g.busy = false;
     }
+    state.busy = false; state.progress = null;
+    render();
   }
 
   // ---- threshold ----
@@ -687,16 +787,36 @@
     out.textContent = thresholdOverride === null ? `${value.toFixed(2)} (default)` : value.toFixed(2);
     resetTh.hidden = thresholdOverride === null;
   }
+  const recompareScored = () => runComparisons(state.groups.filter((g) => g.compared));
   slider.addEventListener("input", () => { thresholdOverride = Number(slider.value); showThreshold(); render(); });
-  slider.addEventListener("change", () => { if (state.compared) compare(); });
-  resetTh.addEventListener("click", () => { thresholdOverride = null; showThreshold(); render(); if (state.compared) compare(); });
+  slider.addEventListener("change", recompareScored);
+  resetTh.addEventListener("click", () => { thresholdOverride = null; showThreshold(); render(); recompareScored(); });
 
-  $("cand-input").addEventListener("change", (e) => { addCandidates([...e.target.files]); e.target.value = ""; });
-  $("compare").addEventListener("click", compare);
+  // ---- theme ----
+  const themeBtn = $("theme-toggle");
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+  const currentTheme = () => document.documentElement.dataset.theme || (systemDark.matches ? "dark" : "light");
+  function showTheme() {
+    const dark = currentTheme() === "dark";
+    themeBtn.replaceChildren(icon(dark ? "sun" : "moon"), el("span", {}, dark ? "Light mode" : "Dark mode"));
+    themeBtn.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+  }
+  themeBtn.addEventListener("click", () => {
+    const next = currentTheme() === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("facematch-theme", next); } catch (e) { /* choice lasts for this visit only */ }
+    showTheme();
+  });
+  systemDark.addEventListener("change", showTheme);
+  showTheme();
+
+  $("compare").addEventListener("click", () => runComparisons(state.groups));
   $("reset-all").addEventListener("click", resetAll);
+  $("add-group").addEventListener("click", addGroup);
 
+  state.groups.push(makeGroup());
   fetch("/health").then((r) => r.json()).then((h) => { defaultThreshold = h.threshold; showThreshold(); })
-    .catch(() => { state.error = "Can't reach the Face Match server. Check that it is still running, then reload the page."; render(); });
+    .catch(() => { state.error = "Check that the server is still running, then reload the page."; render(); });
   render();
 })();
 </script>

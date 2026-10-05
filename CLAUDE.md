@@ -43,6 +43,8 @@ curl -F reference=@old.jpg -F candidates=@new1.jpg -F candidates=@new2.jpg http:
 - [facematch/static/index.html](facematch/static/index.html): the upload page served at `/`. It implements the Google Stitch design in [stitch_face_match/](stitch_face_match/) ("Kinship & Memory" tokens in `kinship_memory/DESIGN.md`). The Stitch HTML is a reference only; it pulls Tailwind, fonts and images from other sites, so don't copy it in.
   - The page uses inline CSS, JS and SVG icons, plus Plus Jakarta Sans served from `static/fonts/` (OFL license alongside it).
   - A test enforces that it loads nothing from other sites. It calls `/health` for the default threshold and `/match` for results. Clicking a face box on a multi-face photo sends that face index and compares again.
+  - **Reference groups:** the page holds up to 10 groups (`MAX_REFS`), each with its own reference photo and photos to check. "Compare all" sends one `/match` request per group, one after another. The model already uses every CPU core, so running them in parallel wouldn't be faster. The backend has no notion of groups.
+  - **Theme:** a Light/Dark toggle sets `data-theme` on `<html>` and saves the choice in `localStorage` (`facematch-theme`). With nothing saved, the page follows the Windows setting.
 - [facematch/config.py](facematch/config.py): settings come from [facematch_config.json](facematch_config.json). The env vars `FACEMATCH_CONFIG` and `FACEMATCH_THRESHOLD` override them.
 - [evaluation/](evaluation/): benchmark loaders, metrics and a runner.
   - **FG-NET:** every same-subject and cross-subject pair; results broken down by age gap.
